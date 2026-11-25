@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+clases/
+*.tmp
+.env.local
+
+/diario/.obsidian/workspace*.json
+/diario/.obsidian/cache
+
+# Modelos de Whisper descargados (cientos de MB, no van a git)
+modelos/

@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apuntes de clase</title>
+<style>
+  :root {
+    --fondo: #f6f5f2; --tarjeta: #fff; --texto: #1d1c1a; --suave: #6b6862; --borde: #e3e0da;
+    --acento: #c2410c; --ok: #15803d; --aviso: #b45309; --radio: 12px;
+    font-family: ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --fondo: #161514; --tarjeta: #201f1d; --texto: #ece9e4; --suave: #9b978f; --borde: #34322e; --acento: #f97316; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--texto); line-height: 1.5; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: 1.4rem; margin: 0 0 24px; }
+  h2 { font-size: 1rem; margin: 40px 0 12px; color: var(--suave); font-weight: 600; }
+  .tarjeta { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); padding: 20px; }
+  label { display: block; font-size: .85rem; color: var(--suave); margin-bottom: 6px; }
+  input, select { width: 100%; font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--borde);
+    background: var(--fondo); color: var(--texto); }
+  .fila { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 560px) { .fila { grid-template-columns: 1fr; } }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 999px; padding: 12px 24px; cursor: pointer; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+  #boton { background: var(--acento); color: #fff; min-width: 180px; }
+  #boton.grabando { background: var(--texto); color: var(--fondo); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .control { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  #tiempo { font-variant-numeric: tabular-nums; font-size: 1.6rem; font-weight: 600; }
+  #nivel { flex: 1; min-width: 120px; height: 8px; background: var(--borde); border-radius: 4px; overflow: hidden; }
+  #nivel div { height: 100%; width: 0; background: var(--ok); transition: width .08s linear; }
+  #info { margin-top: 14px; font-size: .9rem; color: var(--suave); min-height: 1.5em; }
+  #info.mal { color: var(--aviso); font-weight: 600; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li.clase { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 1px solid var(--borde); }
+  li.clase:last-child { border-bottom: 0; }
+  .estado { font-size: .8rem; padding: 2px 10px; border-radius: 999px; background: var(--borde); white-space: nowrap; }
+  .estado.listo { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .estado.error { background: color-mix(in srgb, var(--aviso) 18%, transparent); color: var(--aviso); }
+  .enlaces button { background: none; color: var(--acento); padding: 4px 8px; font-weight: 500; }
+  #lector { margin-top: 16px; }
+  #lector h1 { font-size: 1.3rem; } #lector h2 { color: var(--texto); font-size: 1.1rem; margin-top: 28px; }
+  #lector h3 { font-size: 1rem; margin-top: 20px; }
+  #lector pre { white-space: pre-wrap; font-size: .85rem; }
+  .vacio { color: var(--suave); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Apuntes de clase</h1>
+
+  <section class="tarjeta">
+    <div class="fila">
+      <div>
+        <label for="asignatura">Asignatura</label>
+        <input id="asignatura" placeholder="p. ej. Bases de datos" autocomplete="off">
+      </div>
+      <div>
+        <label for="micro">Micrófono</label>
+        <select id="micro"><option value="">Predeterminado</option></select>
+      </div>
+    </div>
+    <div class="control">
+      <button id="boton">Empezar a grabar</button>
+      <span id="tiempo">00:00</span>
+      <div id="nivel" aria-hidden="true"><div></div></div>
+    </div>
+    <p id="info" role="status">Deja esta pestaña abierta y el Mac sin suspender mientras grabas.</p>
+  </section>
+
+  <h2>Clases</h2>
+  <section class="tarjeta">
+    <ul id="lista"><li class="vacio">Todavía no hay clases.</li></ul>
+    <div id="lector"></div>
+  </section>
+</main>
+
+<script>
+const TROZO_MS = 10000;
+const $ = (id) => document.getElementById(id);
+
+let grabador, flujo, contextoAudio, idClase, numTrozo = 0, inicio = 0, reloj, wakeLock;
+const pendientes = [];  // trozos aún no confirmados por el PC
+let enviando = false;
+
+function formatoTiempo(ms) {
+  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600);
+  const mm = String(Math.floor(s % 3600 / 60)).padStart(2, "0"), ss = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+function info(texto, mal = false) { $("info").textContent = texto; $("info").className = mal ? "mal" : ""; }
+
+async function api(ruta, opciones = {}) {
+  const r = await fetch(ruta, opciones);
+  const datos = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(datos.error || `error ${r.status}`);
+  return datos;
+}
+
+function tipoAudio() {
+  for (const t of ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"])
+    if (MediaRecorder.isTypeSupported(t)) return t;
+  return "";
+}
+const extension = (tipo) => tipo.includes("mp4") ? "mp4" : tipo.includes("ogg") ? "ogg" : "webm";
+
+async function listarMicros() {
+  const dispositivos = await navigator.mediaDevices.enumerateDevices();
+  const sel = $("micro"), actual = sel.value;
+  sel.innerHTML = '<option value="">Predeterminado</option>';
+  dispositivos.filter(d => d.kind === "audioinput" && d.deviceId).forEach(d => {
+    const o = document.createElement("option");
+    o.value = d.deviceId; o.textContent = d.label || "Micrófono";
+    sel.appendChild(o);
+  });
+  sel.value = actual;
+}
+
+async function enviarPendientes() {
+  if (enviando) return;
+  enviando = true;
+  while (pendientes.length) {
+    const t = pendientes[0];
+    try {
+      await api(`/api/trozo?id=${idClase}&n=${t.n}&ext=${t.ext}`, { method: "POST", body: t.blob });
+      pendientes.shift();
+    } catch (e) {
+      info(`Sin conexión con el PC: ${pendientes.length} trozos esperando. Se reintenta solo; revisa el túnel SSH.`, true);
+      await new Promise(r => setTimeout(r, 4000));
+    }
+  }
+  enviando = false;
+  if (grabador?.state === "recording") info("Grabando. Todo el audio está a salvo en el PC.");
+}
+
+function medirNivel() {
+  contextoAudio = new AudioContext();
+  const analizador = contextoAudio.createAnalyser();
+  analizador.fftSize = 512;
+  contextoAudio.createMediaStreamSource(flujo).connect(analizador);
+  const datos = new Uint8Array(analizador.fftSize);
+  const barra = $("nivel").firstElementChild;
+  (function bucle() {
+    if (!flujo) { barra.style.width = "0"; return; }
+    analizador.getByteTimeDomainData(datos);
+    let pico = 0;
+    for (const v of datos) pico = Math.max(pico, Math.abs(v - 128));
+    barra.style.width = Math.min(100, pico / 128 * 250) + "%";
+    requestAnimationFrame(bucle);
+  })();
+}
+
+async function empezar() {
+  const tipo = tipoAudio();
+  if (!window.MediaRecorder || !tipo) return info("Este navegador no puede grabar audio. Prueba con Chrome o Safari actualizados.", true);
+  const micro = $("micro").value;
+  try {
+    flujo = await navigator.mediaDevices.getUserMedia({ audio: {
+      deviceId: micro ? { exact: micro } : undefined,
+      echoCancellation: false, noiseSuppression: true, autoGainControl: true,
+    }});
+  } catch (e) {
+    return info("No hay permiso para usar el micrófono. Actívalo en el navegador y en Ajustes del Mac › Privacidad › Micrófono.", true);
+  }
+  await listarMicros();
+  const { id } = await api("/api/empezar", { method: "POST", body: JSON.stringify({ asignatura: $("asignatura").value }) });
+  idClase = id; numTrozo = 0;
+  const ext = extension(tipo);
+  grabador = new MediaRecorder(flujo, { mimeType: tipo, audioBitsPerSecond: 64000 });
+  grabador.ondataavailable = (e) => {
+    if (e.data.size) { pendientes.push({ n: numTrozo++, ext, blob: e.data }); enviarPendientes(); }
+  };
+  grabador.onstop = terminar;
+  grabador.start(TROZO_MS);
+  medirNivel();
+  inicio = Date.now();
+  reloj = setInterval(() => $("tiempo").textContent = formatoTiempo(Date.now() - inicio), 500);
+  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  $("boton").textContent = "Parar y resumir"; $("boton").classList.add("grabando");
+  $("asignatura").disabled = $("micro").disabled = true;
+  info("Grabando. Todo el audio está a salvo en el PC.");
+}
+
+async function terminar() {
+  clearInterval(reloj);
+  flujo.getTracks().forEach(t => t.stop()); flujo = null;
+  contextoAudio?.close();
+  wakeLock?.release?.(); wakeLock = null;
+  $("boton").disabled = true;
+  info("Enviando lo que falta…");
+  while (pendientes.length || enviando) await new Promise(r => setTimeout(r, 300));
+  try {
+    await api(`/api/terminar?id=${idClase}&total=${numTrozo}`, { method: "POST" });
+    info("Clase guardada. El PC la está transcribiendo y resumiendo; aparecerá abajo.");
+  } catch (e) {
+    info(`No se pudo cerrar la clase: ${e.message}`, true);
+  }
+  $("boton").disabled = false; $("boton").textContent = "Empezar a grabar"; $("boton").classList.remove("grabando");
+  $("asignatura").disabled = $("micro").disabled = false;
+  $("tiempo").textContent = "00:00";
+  cargarLista();
+}
+
+$("boton").onclick = () => grabador?.state === "recording" ? grabador.stop() : empezar().catch(e => info(e.message, true));
+
+window.addEventListener("beforeunload", (e) => {
+  if (grabador?.state === "recording" || pendientes.length) { e.preventDefault(); e.returnValue = ""; }
+});
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState === "visible" && grabador?.state === "recording" && !wakeLock)
+    try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+});
+
+// --- Lista de clases y lector ---
+const ETIQUETAS = { grabando: "grabando", "en cola": "en cola", transcribiendo: "transcribiendo", resumiendo: "resumiendo", listo: "listo", error: "error" };
+
+function escapar(t) { return t.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]); }
+function markdown(md) {
+  const enLinea = (t) => escapar(t).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`(.+?)`/g, "<code>$1</code>");
+  let html = "", lista = false;
+  for (const linea of md.split("\n")) {
+    const cab = linea.match(/^(#{1,3}) (.*)/), item = linea.match(/^\s*(?:[-*]|\d+\.) (.*)/);
+    if (!item && lista) { html += "</ul>"; lista = false; }
+    if (cab) html += `<h${cab[1].length}>${enLinea(cab[2])}</h${cab[1].length}>`;
+    else if (item) { if (!lista) { html += "<ul style='list-style:disc;padding-left:20px'>"; lista = true; } html += `<li>${enLinea(item[1])}</li>`; }
+    else if (linea.trim()) html += `<p>${enLinea(linea)}</p>`;
+  }
+  return html + (lista ? "</ul>" : "");
+}
+
+async function abrir(id, tipo) {
+  const { texto } = await api(`/api/resumen?id=${id}&tipo=${tipo}`);
+  $("lector").innerHTML = texto ? (tipo === "transcripcion" ? `<pre>${escapar(texto)}</pre>` : markdown(texto)) : "<p class='vacio'>Aún no está.</p>";
+  $("lector").scrollIntoView({ behavior: "smooth" });
+}
+
+async function cargarLista() {
+  let clases;
+  try { clases = await api("/api/clases"); } catch { return; }
+  const ul = $("lista");
+  if (!clases.length) { ul.innerHTML = '<li class="vacio">Todavía no hay clases.</li>'; return; }
+  ul.innerHTML = "";
+  for (const c of clases) {
+    const li = document.createElement("li"); li.className = "clase";
+    const progreso = c.estado === "transcribiendo" && c.progreso != null ? ` ${c.progreso}%` : "";
+    li.innerHTML = `<div><strong>${escapar(c.asignatura || "Sin asignatura")}</strong>
+      <div class="vacio">${escapar(c.empezado || c.id)}${c.error ? " · " + escapar(c.error) : ""}</div></div>
+      <div class="enlaces"><span class="estado ${c.estado}">${ETIQUETAS[c.estado] || c.estado}${progreso}</span></div>`;
+    const enlaces = li.querySelector(".enlaces");
+    const boton = (texto, fn) => { const b = document.createElement("button"); b.textContent = texto; b.onclick = fn; enlaces.appendChild(b); };
+    if (c.estado === "listo") { boton("Resumen", () => abrir(c.id, "resumen")); boton("Texto", () => abrir(c.id, "transcripcion")); }
+    if (c.estado === "error") boton("Reintentar", () => api(`/api/reprocesar?id=${c.id}`, { method: "POST" }).then(cargarLista));
+    ul.appendChild(li);
+  }
+}
+
+cargarLista();
+setInterval(cargarLista, 5000);
+navigator.mediaDevices?.addEventListener?.("devicechange", listarMicros);
+</script>
+</body>
+</html>
