@@ -21,7 +21,9 @@ py -3.12 -m venv .venv
 Descarga el modelo de Whisper en `modelos/faster-whisper-small/` (carpeta fuera de git). Para usar otro, pon su ruta en `APUNTES_WHISPER`.
 
 ## Uso en clase
-1. En el PC, arranca el servidor: `iniciar.bat` (o por SSH: `.venv\Scripts\python servidor.py`).
+1. Arranca el servidor en el PC.
+   - Por SSH: `powershell -File C:\Users\david\Desktop\Apuntes-Clase\arrancar.ps1`. Sigue en marcha aunque cierres la conexión. Para pararlo, añade `-Parar`.
+   - Sentado en el PC: doble clic en `iniciar.bat`.
 2. En la Terminal del Mac, abre el túnel y déjalo abierto:
    ```bash
    ssh -N -L 8765:localhost:8765 usuario@ip-del-pc
