@@ -5,7 +5,7 @@ tags: [inicio]
 
 Grabadora de clases para mí (David). El micro del Mac de clase graba desde el navegador, el audio viaja por túnel SSH a mi PC con Windows, que lo transcribe con Whisper en la GPU y lo resume con Claude en apuntes de estudio.
 
-- Repo: https://github.com/davidodo123/Apuntes-Clase
+- Repo: https://github.com/davidodo123/apuntes-clase
 - Web: local, `http://localhost:8765` (solo por túnel SSH, no se publica)
 
 ## Cómo funciona
