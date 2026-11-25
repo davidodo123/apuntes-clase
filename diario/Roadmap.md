@@ -17,7 +17,7 @@ Leyenda: `[x]` hecho · `[ ]` pendiente · `[/]` empezado · `[-]` descartado
 - [ ] Grabar una clase real de prueba y revisar transcripción y resumen
 
 ## Fase 2 · Importante
-- [ ] Arrancar el servidor solo al encender el PC
+- [/] Arrancar el servidor sin depender de la sesión SSH: hecho `arrancar.ps1`; falta que arranque solo al encender (tarea programada, pendiente de permiso)
 - [ ] Guardar los trozos en el navegador si se cierra la pestaña sin querer
 - [ ] Exportar los resúmenes a una bóveda de Obsidian de apuntes por asignatura
 - [ ] Buscar entre todas las clases
